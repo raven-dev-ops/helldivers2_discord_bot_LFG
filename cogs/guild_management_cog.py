@@ -159,7 +159,7 @@ class GuildManagementCog(commands.Cog):
         # ----------------------------------------------------------------------
         monitor_overwrites = {
             guild.default_role: discord.PermissionOverwrite(
-                view_channel=False,
+                view_channel=True,
                 add_reactions=False
             ),
             gpt_stat_access_role: discord.PermissionOverwrite(
@@ -197,7 +197,7 @@ class GuildManagementCog(commands.Cog):
         # ----------------------------------------------------------------------
         stats_log_overwrites = {
             guild.default_role: discord.PermissionOverwrite(
-                view_channel=False,
+                view_channel=True,
                 add_reactions=False
             ),
             gpt_stat_access_role: discord.PermissionOverwrite(

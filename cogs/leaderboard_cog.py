@@ -235,7 +235,7 @@ class LeaderboardCog(commands.Cog):
         """
         if not leaderboard_data:
             embed = discord.Embed(
-                title="FEBRUARY ALLIANCE LEADERBOARD\n**Best Overall Averages**\n",
+                title="MARCH ALLIANCE LEADERBOARD\n**Best Overall Averages**\n",
                 description="No leaderboard data available.",
                 color=discord.Color.blue()
             )
@@ -254,7 +254,7 @@ class LeaderboardCog(commands.Cog):
 
             embed = discord.Embed(
                 title=(
-                    f"**FEBRUARY ALLIANCE LEADERBOARD**\n"
+                    f"**MARCH ALLIANCE LEADERBOARD**\n"
                     f"*Best Overall Averages*\n(Page {page_idx + 1}/{num_pages})"
                 ),
                 color=discord.Color.blue()

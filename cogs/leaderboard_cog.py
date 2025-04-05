@@ -138,8 +138,8 @@ class LeaderboardCog(commands.Cog):
         Fetches and processes the leaderboard data from 'GPTHellbot.User_Stats'.
         Also fetches 'Alliance' collection to map discord_server_id -> server_name (Clan).
 
-        Aggregates stats per player across all entries, then computes the
-        AVERAGE of each metric. Returns a list sorted by average kills descending.
+        Aggregates stats per player across all entries, then returns a list
+        sorted by TOTAL shots fired (descending).
         """
         try:
             mongo_uri = os.getenv('MONGODB_URI')
@@ -168,7 +168,6 @@ class LeaderboardCog(commands.Cog):
                 "total_deaths": 0,
                 "total_shots_fired": 0,
                 "total_shots_hit": 0,
-                "count": 0,
                 "Clan": "Unknown Clan",
             })
 
@@ -187,34 +186,28 @@ class LeaderboardCog(commands.Cog):
                 player_data[name]["total_deaths"] += deaths
                 player_data[name]["total_shots_fired"] += sfired
                 player_data[name]["total_shots_hit"] += shit
-                player_data[name]["count"] += 1
                 player_data[name]["Clan"] = clan_name
 
-            # Compute average stats
+            # Convert to list
             leaderboard_list = []
             for player_name, stats in player_data.items():
-                c = stats["count"]
-                if c <= 0:
-                    continue  # skip if no valid data
-
-                avg_kills = stats["total_kills"] / c
-                avg_deaths = stats["total_deaths"] / c
-                avg_fired = stats["total_shots_fired"] / c
-                avg_hit = stats["total_shots_hit"] / c
-                acc = (avg_hit / avg_fired * 100) if avg_fired > 0 else 0
+                # Compute simple accuracy. (ShotsHit / ShotsFired) * 100
+                sfired_total = stats["total_shots_fired"]
+                shit_total = stats["total_shots_hit"]
+                accuracy = (shit_total / sfired_total * 100) if sfired_total > 0 else 0
 
                 leaderboard_list.append({
                     "player_name": player_name,
-                    "Kills_Avg": avg_kills,
-                    "Deaths_Avg": avg_deaths,
-                    "ShotsFired_Avg": avg_fired,
-                    "ShotsHit_Avg": avg_hit,
-                    "Accuracy": acc,
+                    "Kills_Total": stats["total_kills"],
+                    "Deaths_Total": stats["total_deaths"],
+                    "ShotsFired_Total": sfired_total,
+                    "ShotsHit_Total": shit_total,
+                    "Accuracy": accuracy,
                     "Clan": stats["Clan"],
                 })
 
-            # Sort by average kills descending
-            leaderboard_list.sort(key=lambda x: x["Kills_Avg"], reverse=True)
+            # Sort by TOTAL shots fired descending
+            leaderboard_list.sort(key=lambda x: x["ShotsFired_Total"], reverse=True)
             return leaderboard_list
 
         except Exception as e:
@@ -231,11 +224,11 @@ class LeaderboardCog(commands.Cog):
     async def build_leaderboard_embeds(self, leaderboard_data):
         """
         Creates a list of Discord Embeds from the given leaderboard data,
-        displaying stats for each player, without trailing .00 and without the "(Avg)" label.
+        displaying stats for each player. Now ranks by most shots fired.
         """
         if not leaderboard_data:
             embed = discord.Embed(
-                title="MARCH ALLIANCE LEADERBOARD\n**Best Overall Averages**\n",
+                title="APRIL ALLIANCE LEADERBOARD\n**Most Shots Fired**\n",
                 description="No leaderboard data available.",
                 color=discord.Color.blue()
             )
@@ -254,8 +247,8 @@ class LeaderboardCog(commands.Cog):
 
             embed = discord.Embed(
                 title=(
-                    f"**MARCH ALLIANCE LEADERBOARD**\n"
-                    f"*Best Overall Averages*\n(Page {page_idx + 1}/{num_pages})"
+                    f"**APRIL ALLIANCE LEADERBOARD**\n"
+                    f"*(Most Shots Fired)*\n(Page {page_idx + 1}/{num_pages})"
                 ),
                 color=discord.Color.blue()
             )
@@ -264,24 +257,23 @@ class LeaderboardCog(commands.Cog):
             for i, player in enumerate(batch, start=start_index):
                 p_name = player["player_name"]
 
-                # Format each float to two decimals, then remove trailing zeros
-                kills_str = self.remove_trailing_zeros(f"{player['Kills_Avg']:.2f}")
-                deaths_str = self.remove_trailing_zeros(f"{player['Deaths_Avg']:.2f}")
-                sfired_str = self.remove_trailing_zeros(f"{player['ShotsFired_Avg']:.2f}")
-                shit_str = self.remove_trailing_zeros(f"{player['ShotsHit_Avg']:.2f}")
+                kills_str = f"{player['Kills_Total']}"
+                deaths_str = f"{player['Deaths_Total']}"
+                sfired_str = f"{player['ShotsFired_Total']}"
+                shit_str = f"{player['ShotsHit_Total']}"
 
-                # For accuracy, format to one decimal then strip .0 if present
+                # Format accuracy to 1 decimal place, strip trailing .0
                 acc_str = self.remove_trailing_zeros(f"{player['Accuracy']:.1f}")
 
                 clan_name = player["Clan"]
 
                 field_value = (
                     f"**Clan:** {clan_name}\n"
-                    f"**Kills:** {kills_str}\n"
-                    f"**Accuracy:** {acc_str}%\n"
-                    f"**Deaths:** {deaths_str}\n"
                     f"**Shots Fired:** {sfired_str}\n"
-                    f"**Shots Hit:** {shit_str}"
+                    f"**Shots Hit:** {shit_str}\n"
+                    f"**Accuracy:** {acc_str}%\n"
+                    f"**Kills:** {kills_str}\n"
+                    f"**Deaths:** {deaths_str}"
                 )
 
                 embed.add_field(

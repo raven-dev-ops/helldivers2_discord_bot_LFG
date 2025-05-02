@@ -12,12 +12,13 @@ LEADERBOARD_CHANNEL_NAME = "leaderboard"
 class LeaderboardCog(commands.Cog):
     """
     A Cog that manages a periodic leaderboard update.
+    For May 2025, leaderboard ranks by Least Deaths, Most Kills, Best Accuracy.
+    Players must have a minimum of 3 games played to appear on the leaderboard.
     """
 
     def __init__(self, bot):
         self.bot = bot
         self.leaderboard_lock = asyncio.Lock()
-        # Start the periodic leaderboard update
         self.update_leaderboard_task.start()
 
     def cog_unload(self):
@@ -25,9 +26,6 @@ class LeaderboardCog(commands.Cog):
 
     @tasks.loop(hours=8)
     async def update_leaderboard_task(self):
-        """
-        Periodically updates every guild's #leaderboard channel with the latest stats.
-        """
         async with self.leaderboard_lock:
             logging.info("Starting global leaderboard update for all guilds...")
             for guild in self.bot.guilds:
@@ -37,16 +35,13 @@ class LeaderboardCog(commands.Cog):
                         logging.warning(f"No valid leaderboard channel in '{guild.name}'. Skipping.")
                         continue
 
-                    # Pull data and build embeds
                     leaderboard_data = await self.calculate_leaderboard_data()
                     embeds = await self.build_leaderboard_embeds(leaderboard_data)
 
-                    # Clean up old messages (limit=10 to avoid mass-deletion)
                     async for message in channel.history(limit=10):
                         if message.author == self.bot.user and message.embeds:
                             await message.delete()
 
-                    # Send the newly built leaderboard
                     for embed in embeds:
                         await channel.send(embed=embed)
 
@@ -56,184 +51,78 @@ class LeaderboardCog(commands.Cog):
 
     @update_leaderboard_task.before_loop
     async def before_update_leaderboard_task(self):
-        """
-        Ensure the bot is ready before the loop starts.
-        """
         await self.bot.wait_until_ready()
         logging.info("Bot is ready. Starting update_leaderboard_task.")
 
     async def ensure_leaderboard_channel(self, guild: discord.Guild) -> discord.TextChannel:
-        """
-        Ensures the specified guild has a 'GPT NETWORK' category and a 'leaderboard' channel.
-        Prevents reactions in the channel by setting add_reactions=False for @everyone.
-        Returns the channel if successful, otherwise None.
-        """
         if not guild.me.guild_permissions.manage_channels:
-            logging.warning(
-                f"Bot lacks 'Manage Channels' permission in guild '{guild.name}'. "
-                "Skipping channel creation."
-            )
+            logging.warning(f"Bot lacks 'Manage Channels' permission in guild '{guild.name}'. Skipping channel creation.")
             return None
 
-        # Find or create the category
         category = discord.utils.get(guild.categories, name=CATEGORY_NAME)
         if not category:
-            try:
-                category = await guild.create_category(name=CATEGORY_NAME)
-                logging.info(f"Created category '{CATEGORY_NAME}' in '{guild.name}'.")
-            except Exception as e:
-                logging.error(f"Error creating category '{CATEGORY_NAME}' in '{guild.name}': {e}")
-                return None
+            category = await guild.create_category(name=CATEGORY_NAME)
 
-        # Find or create the #leaderboard channel
         leaderboard_channel = discord.utils.get(
             guild.text_channels,
             name=LEADERBOARD_CHANNEL_NAME,
             category=category
         )
 
-        # Overwrites: read-only, no reactions for @everyone
         overwrites = {
-            guild.default_role: discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=False,
-                add_reactions=False
-            ),
-            guild.me: discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True,
-                add_reactions=False
-            )
+            guild.default_role: discord.PermissionOverwrite(view_channel=True, send_messages=False, add_reactions=False),
+            guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, add_reactions=False)
         }
 
         if not leaderboard_channel:
-            try:
-                leaderboard_channel = await guild.create_text_channel(
-                    name=LEADERBOARD_CHANNEL_NAME,
-                    overwrites=overwrites,
-                    category=category
-                )
-                logging.info(
-                    f"Created channel '{LEADERBOARD_CHANNEL_NAME}' in '{guild.name}'."
-                )
-            except Exception as e:
-                logging.error(f"Error creating channel '{LEADERBOARD_CHANNEL_NAME}' in '{guild.name}': {e}")
-                return None
+            leaderboard_channel = await guild.create_text_channel(
+                name=LEADERBOARD_CHANNEL_NAME,
+                overwrites=overwrites,
+                category=category
+            )
         else:
-            try:
-                await leaderboard_channel.edit(category=category, overwrites=overwrites)
-                logging.info(
-                    f"Updated '#{LEADERBOARD_CHANNEL_NAME}' overwrites in '{guild.name}'."
-                )
-            except Exception as e:
-                logging.warning(
-                    f"Could not update '#{LEADERBOARD_CHANNEL_NAME}' overwrites in '{guild.name}': {e}"
-                )
-                return None
+            await leaderboard_channel.edit(category=category, overwrites=overwrites)
 
         return leaderboard_channel
 
     async def calculate_leaderboard_data(self):
-        """
-        Fetches and processes the leaderboard data from 'GPTHellbot.User_Stats'.
-        Also fetches 'Alliance' collection to map discord_server_id -> server_name (Clan).
+        mongo_uri = os.getenv('MONGODB_URI')
+        client = AsyncIOMotorClient(mongo_uri)
+        db = client['GPTHellbot']
+        stats_collection = db['User_Stats']
+        alliance_collection = db['Alliance']
 
-        Aggregates stats per player across all entries, then returns a list
-        sorted by TOTAL shots fired (descending).
-        """
-        try:
-            mongo_uri = os.getenv('MONGODB_URI')
-            if not mongo_uri:
-                raise ValueError("MONGODB_URI not set in environment.")
+        alliance_servers = await alliance_collection.find().to_list(length=None)
+        server_map = {srv.get("discord_server_id"): srv.get("server_name", "Unknown Clan") for srv in alliance_servers}
 
-            client = AsyncIOMotorClient(mongo_uri)
-            db = client['GPTHellbot']
-            stats_collection = db['User_Stats']
-            alliance_collection = db['Alliance']
+        cursor = stats_collection.find()
+        all_players = await cursor.to_list(length=None)
 
-            # Fetch alliance server info (maps server_id -> server_name)
-            alliance_servers = await alliance_collection.find().to_list(length=None)
-            server_map = {
-                srv.get("discord_server_id"): srv.get("server_name", "Unknown Clan")
-                for srv in alliance_servers
-            }
+        player_data = defaultdict(lambda: {"kills": 0, "deaths": 0, "shots_fired": 0, "shots_hit": 0, "games_played": 0, "Clan": "Unknown Clan"})
 
-            # Retrieve all player stats
-            cursor = stats_collection.find()
-            all_players = await cursor.to_list(length=None)
+        for p in all_players:
+            name = p.get('player_name', 'Unknown Player')
+            discord_server_id = p.get('discord_server_id')
+            clan_name = server_map.get(discord_server_id, "Unknown Clan")
 
-            # Aggregate stats
-            player_data = defaultdict(lambda: {
-                "total_kills": 0,
-                "total_deaths": 0,
-                "total_shots_fired": 0,
-                "total_shots_hit": 0,
-                "Clan": "Unknown Clan",
-            })
+            player_data[name]["kills"] += int(p.get('Kills', 0) or 0)
+            player_data[name]["deaths"] += int(p.get('Deaths', 0) or 0)
+            player_data[name]["shots_fired"] += int(p.get('Shots Fired', 0) or 0)
+            player_data[name]["shots_hit"] += int(p.get('Shots Hit', 0) or 0)
+            player_data[name]["games_played"] += 1
+            player_data[name]["Clan"] = clan_name
 
-            for p in all_players:
-                name = p.get('player_name', 'Unknown Player')
-                kills = int(p.get('Kills', 0) or 0)
-                deaths = int(p.get('Deaths', 0) or 0)
-                sfired = int(p.get('Shots Fired', 0) or 0)
-                shit = int(p.get('Shots Hit', 0) or 0)
+        leaderboard_list = [
+            {"player_name": name, **data, "accuracy": (data["shots_hit"] / data["shots_fired"] * 100 if data["shots_fired"] else 0)}
+            for name, data in player_data.items() if data["games_played"] >= 3
+        ]
 
-                # Attempt to map from discord_server_id -> clan name
-                discord_server_id = p.get('discord_server_id')
-                clan_name = server_map.get(discord_server_id, "Unknown Clan")
-
-                player_data[name]["total_kills"] += kills
-                player_data[name]["total_deaths"] += deaths
-                player_data[name]["total_shots_fired"] += sfired
-                player_data[name]["total_shots_hit"] += shit
-                player_data[name]["Clan"] = clan_name
-
-            # Convert to list
-            leaderboard_list = []
-            for player_name, stats in player_data.items():
-                # Compute simple accuracy. (ShotsHit / ShotsFired) * 100
-                sfired_total = stats["total_shots_fired"]
-                shit_total = stats["total_shots_hit"]
-                accuracy = (shit_total / sfired_total * 100) if sfired_total > 0 else 0
-
-                leaderboard_list.append({
-                    "player_name": player_name,
-                    "Kills_Total": stats["total_kills"],
-                    "Deaths_Total": stats["total_deaths"],
-                    "ShotsFired_Total": sfired_total,
-                    "ShotsHit_Total": shit_total,
-                    "Accuracy": accuracy,
-                    "Clan": stats["Clan"],
-                })
-
-            # Sort by TOTAL shots fired descending
-            leaderboard_list.sort(key=lambda x: x["ShotsFired_Total"], reverse=True)
-            return leaderboard_list
-
-        except Exception as e:
-            logging.error(f"Error calculating leaderboard data: {e}")
-            return []
-
-    def remove_trailing_zeros(self, value_str: str) -> str:
-        """
-        Removes trailing zeros and a trailing decimal point from a string
-        that was formatted with decimal places (e.g. '370.00' -> '370').
-        """
-        return value_str.rstrip('0').rstrip('.')
+        leaderboard_list.sort(key=lambda x: (x["deaths"], -x["kills"], -x["accuracy"]))
+        return leaderboard_list
 
     async def build_leaderboard_embeds(self, leaderboard_data):
-        """
-        Creates a list of Discord Embeds from the given leaderboard data,
-        displaying stats for each player. Now ranks by most shots fired.
-        """
         if not leaderboard_data:
-            embed = discord.Embed(
-                title="APRIL ALLIANCE LEADERBOARD\n**Most Shots Fired**\n",
-                description="No leaderboard data available.",
-                color=discord.Color.blue()
-            )
-            embed.set_footer(text="Leaderboard updates every 8 hours. Reset monthly.")
-            return [embed]
+            return [discord.Embed(title="MAY ALLIANCE LEADERBOARD\n**Least Deaths**", description="No leaderboard data available.", color=discord.Color.blue())]
 
         embeds = []
         batch_size = 25
@@ -241,46 +130,12 @@ class LeaderboardCog(commands.Cog):
         num_pages = (total_players + batch_size - 1) // batch_size
 
         for page_idx in range(num_pages):
-            start_index = page_idx * batch_size
-            end_index = min(start_index + batch_size, total_players)
-            batch = leaderboard_data[start_index:end_index]
-
-            embed = discord.Embed(
-                title=(
-                    f"**APRIL ALLIANCE LEADERBOARD**\n"
-                    f"*(Most Shots Fired)*\n(Page {page_idx + 1}/{num_pages})"
-                ),
-                color=discord.Color.blue()
-            )
+            batch = leaderboard_data[page_idx * batch_size:(page_idx + 1) * batch_size]
+            embed = discord.Embed(title=f"**MAY ALLIANCE LEADERBOARD**\n*(Least Deaths, Most Kills, Best Accuracy)*\n(Page {page_idx + 1}/{num_pages})", color=discord.Color.blue())
             embed.set_footer(text="Leaderboard updates every 8 hours. Monthly reset.")
 
-            for i, player in enumerate(batch, start=start_index):
-                p_name = player["player_name"]
-
-                kills_str = f"{player['Kills_Total']}"
-                deaths_str = f"{player['Deaths_Total']}"
-                sfired_str = f"{player['ShotsFired_Total']}"
-                shit_str = f"{player['ShotsHit_Total']}"
-
-                # Format accuracy to 1 decimal place, strip trailing .0
-                acc_str = self.remove_trailing_zeros(f"{player['Accuracy']:.1f}")
-
-                clan_name = player["Clan"]
-
-                field_value = (
-                    f"**Clan:** {clan_name}\n"
-                    f"**Shots Fired:** {sfired_str}\n"
-                    f"**Shots Hit:** {shit_str}\n"
-                    f"**Accuracy:** {acc_str}%\n"
-                    f"**Kills:** {kills_str}\n"
-                    f"**Deaths:** {deaths_str}"
-                )
-
-                embed.add_field(
-                    name=f"{i + 1}. {p_name}",
-                    value=field_value,
-                    inline=True
-                )
+            for i, player in enumerate(batch, start=1 + page_idx * batch_size):
+                embed.add_field(name=f"{i}. {player['player_name']}", value=f"Clan: {player['Clan']}\nDeaths: {player['deaths']}\nKills: {player['kills']}\nAccuracy: {player['accuracy']:.1f}%", inline=True)
 
             embeds.append(embed)
 

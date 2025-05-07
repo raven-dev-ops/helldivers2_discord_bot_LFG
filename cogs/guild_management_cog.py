@@ -21,10 +21,10 @@ class GuildManagementCog(commands.Cog):
           - #leaderboard channel, read-only to everyone but the bot
           - Finally, store all relevant IDs in the Server_Listing collection.
         """
-        category_name = "GPT NETWORK"
-        gpt_channel_name = "gpt-network"
-        monitor_channel_name = "monitor"
-        leaderboard_channel_name = "leaderboard"
+        category_name = "❗｜GPT NETWORK"
+        gpt_channel_name = "❗｜LFG-bot"
+        monitor_channel_name = "❗｜monitor"
+        leaderboard_channel_name = "❗｜leaderboard"
 
         logging.info(f"Starting setup for guild: {guild.name} (ID: {guild.id})")
 

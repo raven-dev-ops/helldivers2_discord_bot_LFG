@@ -7,7 +7,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from collections import defaultdict
 
 CATEGORY_NAME = "GPT NETWORK"
-LEADERBOARD_CHANNEL_NAME = "leaderboard"
+LEADERBOARD_CHANNEL_NAME = "❗｜leaderboard"
 
 class LeaderboardCog(commands.Cog):
     """

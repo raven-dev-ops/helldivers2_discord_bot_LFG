@@ -122,7 +122,7 @@ class LeaderboardCog(commands.Cog):
 
     async def build_leaderboard_embeds(self, leaderboard_data):
         if not leaderboard_data:
-            return [discord.Embed(title="MAY ALLIANCE LEADERBOARD\n**Least Deaths**", description="No leaderboard data available.", color=discord.Color.blue())]
+            return [discord.Embed(title="MAY ALLIANCE LEADERBOARD\n**Best (Least) Deaths**", description="No leaderboard data available.\nMust submit at least (3) games to appear!", color=discord.Color.blue())]
 
         embeds = []
         batch_size = 25

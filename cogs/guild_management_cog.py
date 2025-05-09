@@ -123,6 +123,7 @@ class GuildManagementCog(commands.Cog):
         monitor_channel_name = "❗｜monitor"
         leaderboard_channel_name = "❗｜leaderboard"
         sos_lfg_role_name = "SOS LFG" # Role name without the '@' symbol
+        sos_lfg_role_color = 0xfaee10 # Hex color for #faee10
 
         # Define the names of the channels the bot *should* manage in the category
         target_channel_names = {gpt_channel_name, monitor_channel_name, leaderboard_channel_name}
@@ -144,20 +145,22 @@ class GuildManagementCog(commands.Cog):
              manage_messages=True
         )
 
-        # Also check permissions needed for creating/editing roles specifically if they don't exist
-        # If the bot can manage roles, it can create/edit them below its highest role.
-        # The general manage_roles check above is usually sufficient.
+        # Check if the bot has the *minimum* required permissions.
+        # Administrator permission implicitly grants all these.
+        if not bot_member.guild_permissions.administrator:
+             # If not administrator, check if it has the specific required permissions
+             if not bot_member.guild_permissions >= required_permissions:
+                  # --- Simplified Logging Here ---
+                  # Bot doesn't have Administrator and also doesn't have the specific needed perms.
+                  logging.warning(
+                      f"Bot lacks sufficient permissions to perform setup in guild '{guild.name}' (ID: {guild.id}). Skipping setup."
+                  )
+                  return # Skip the rest of the setup if permissions are insufficient
+             # Else: bot_member.guild_permissions >= required_permissions is True, proceed
 
 
-        if not bot_member.guild_permissions >= required_permissions:
-             missing_perms = [
-                 perm for perm, value in required_permissions
-                 if value is True and not getattr(bot_member.guild_permissions, perm)
-             ]
-             logging.warning(
-                 f"Bot lacks required permissions in guild '{guild.name}'. Missing: {', '.join(missing_perms)}. Skipping setup."
-             )
-             return
+        # If we reach here, the bot either has Administrator or the specific required permissions.
+        logging.info(f"Bot has sufficient permissions for setup in guild '{guild.name}'. Proceeding.")
 
 
         # ----------------------------------------------------------------------
@@ -219,6 +222,7 @@ class GuildManagementCog(commands.Cog):
                  if channel.name not in target_channel_names:
                       # Check bot has permissions to delete this channel (redundant if manage_channels guild-wide)
                       # but safer if category overwrites restricted it.
+                      # This inner permission check is good practice even if guild-wide perm was held.
                       if channel.permissions_for(guild.me).manage_channels:
                           try:
                               logging.info(f"Deleting extraneous channel '{channel.name}' (ID: {channel.id}) in category '{category.name}'.")
@@ -227,6 +231,7 @@ class GuildManagementCog(commands.Cog):
                           except Exception as e:
                               logging.error(f"Failed to delete extraneous channel '{channel.name}' (ID: {channel.id}): {e}")
                       else:
+                           # This warning indicates a potential override issue even if guild-wide perm was held
                            logging.warning(f"Bot lacks 'Manage Channels' permission for extraneous channel '{channel.name}' (ID: {channel.id}). Cannot delete.")
                  else:
                       # Log that we are skipping channels with target names (optional, can be debug)
@@ -334,7 +339,8 @@ class GuildManagementCog(commands.Cog):
 
 
         # ----------------------------------------------------------------------
-        # NEW STEP: Create (or retrieve) @SOS LFG role
+        # Create (or retrieve) @SOS LFG role
+        # Now includes color #faee10
         # ----------------------------------------------------------------------
         sos_lfg_role = discord.utils.get(guild.roles, name=sos_lfg_role_name)
         if not sos_lfg_role:
@@ -345,12 +351,22 @@ class GuildManagementCog(commands.Cog):
                     name=sos_lfg_role_name,
                     mentionable=True,
                     permissions=permissions,
+                    color=discord.Color(sos_lfg_role_color), # Set the color here
                     reason="Role for pinging users interested in SOS LFG."
                 )
-                logging.info(f"Created role '{sos_lfg_role_name}' (ID: {sos_lfg_role.id}) in guild '{guild.name}'.")
+                logging.info(f"Created role '{sos_lfg_role_name}' (ID: {sos_lfg_role.id}) in guild '{guild.name}' with color {hex(sos_lfg_role_color)}.")
             except Exception as e:
                 logging.error(f"Error creating role '{sos_lfg_role_name}' in guild '{guild.name}': {e}")
                 # Don't return, but sos_lfg_role might be None for the DB update
+        else:
+             logging.info(f"Role '{sos_lfg_role_name}' (ID: {sos_lfg_role.id}) already exists in guild '{guild.name}'.")
+             # Optional: Update the color if it's not correct
+             if sos_lfg_role.color != discord.Color(sos_lfg_role_color):
+                 try:
+                     await sos_lfg_role.edit(color=discord.Color(sos_lfg_role_color), reason=f"Updating color for {sos_lfg_role_name} role.")
+                     logging.info(f"Updated color for role '{sos_lfg_role_name}' (ID: {sos_lfg_role.id}) to {hex(sos_lfg_role_color)} in guild '{guild.name}'.")
+                 except Exception as e:
+                      logging.error(f"Failed to update color for role '{sos_lfg_role_name}' (ID: {sos_lfg_role.id}) in guild '{guild.name}': {e}")
 
 
         # ----------------------------------------------------------------------

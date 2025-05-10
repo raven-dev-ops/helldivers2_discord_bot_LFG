@@ -491,8 +491,8 @@ class LeaderboardCog(commands.Cog):
                     f"**Deaths:** {player['deaths']}\n"
                     f"**Kills:** {player['kills']}\n"
                     f"**Accuracy:** {player['accuracy']:.1f}%\n"
-                    f"**Shots Hit:** ({player['shots_hit']}\n"
-                    f"**Shots Fired:** ({player['shots_fired']})\n"
+                    f"**Shots Hit:** {player['shots_hit']}\n"
+                    f"**Shots Fired:** {player['shots_fired']}\n"
                     f"*Games: {player['games_played']}*"
                 )
                 # Discord embed fields have limits on name (256 chars) and value (1024 chars)

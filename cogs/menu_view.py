@@ -34,7 +34,7 @@ class SOSMenuView(discord.ui.View):
         # e.g., discord.Intents.all() or specific intents like discord.Intents.interactions
 
     # Button callbacks remain as you provided them in the base code
-    @discord.ui.button(label="LAUNCH SOS", style=discord.ButtonStyle.danger, custom_id="launch_sos_button")
+    @discord.ui.button(label="LAUNCH SOS", style=discord.ButtonStyle.danger, custom_id="launch_sos_button", disabled=True)
     async def launch_sos_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         sos_cog = self.bot.get_cog("SOSCog")
         if sos_cog:

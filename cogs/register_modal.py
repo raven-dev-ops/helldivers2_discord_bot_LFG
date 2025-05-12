@@ -3,6 +3,7 @@ from discord.ext import commands
 from datetime import datetime
 import logging
 
+
 class RegisterModal(discord.ui.Modal, title="Register as a Helldiver"):
     """
     A modal for user registration.
@@ -17,6 +18,28 @@ class RegisterModal(discord.ui.Modal, title="Register as a Helldiver"):
     def __init__(self, bot):
         super().__init__()
         self.bot = bot
+        # Add the SOS LFG role select menu
+        self.sos_lfg_role_select = None  # Initialize to None
+        asyncio.create_task(self._add_role_select()) # Run role select creation asynchronously
+
+    async def _add_role_select(self):
+        # This method needs to be async because it interacts with the database
+        if hasattr(self.bot, 'mongo_db') and self.bot.mongo_db:
+            server_listing = self.bot.mongo_db['Server_Listing']
+            server_data = await server_listing.find_one({"discord_server_id": self.helldiver_name.view.interaction.guild_id})
+            if server_data and 'sos_lfg_role_id' in server_data:
+                role_id = server_data['sos_lfg_role_id']
+                guild = self.bot.get_guild(self.helldiver_name.view.interaction.guild_id)
+                if guild:
+                    role = guild.get_role(role_id)
+                    if role:
+                        options = [discord.SelectOption(label=role.name, value=str(role.id))]
+                        self.sos_lfg_role_select = discord.ui.Select(
+                            placeholder="Select SOS LFG Role (Optional)",
+                            options=options,
+                            required=False
+                        )
+                        self.add_item(self.sos_lfg_role_select)
 
     async def on_submit(self, interaction: discord.Interaction):
         """
@@ -48,12 +71,37 @@ class RegisterModal(discord.ui.Modal, title="Register as a Helldiver"):
                 upsert=True
             )
 
+            # Handle role assignment if a role was selected
+            selected_role_id = None
+            if self.sos_lfg_role_select and self.sos_lfg_role_select.values:
+                selected_role_id = int(self.sos_lfg_role_select.values[0])
+
+            if selected_role_id:
+                guild = interaction.guild
+                role = guild.get_role(selected_role_id)
+                if role:
+                    try:
+                        await interaction.user.add_roles(role)
+                        await interaction.followup.send(
+                            f"Registration successful! Welcome, **{player_name}**! You have been assigned the **{role.name}** role.",
+                            ephemeral=True
+                        )
+                        logging.info(f"Assigned role {role.name} to user {player_name} ({discord_id}).")
+                        return # Exit after sending followup
+                    except discord.Forbidden:
+                        logging.warning(f"Bot lacks permissions to assign role {role.name} to user {player_name} ({discord_id}).")
+                        # Fall through to send registration success message without role mention
+                    except Exception as role_e:
+                        logging.error(f"Error assigning role {role.name} to user {player_name} ({discord_id}): {role_e}")
+                        # Fall through to send registration success message without role mention
+
             await interaction.response.send_message(
                 f"Registration successful! Welcome, **{player_name}**!",
                 ephemeral=True
-            )
-            logging.info(f"User {player_name} ({discord_id}) registered successfully.")
-        except Exception as e:
+            ) # Send this if no role was selected or role assignment failed
+            logging.info(f"User {player_name} ({discord_id}) registered successfully{', without role assignment due to error' if selected_role_id else ''}.")
+
+        except Exception as e: # Catch errors during the initial registration process
             logging.error(f"Error during registration: {e}")
             await interaction.response.send_message(
                 "An error occurred while registering. Please try again later.",

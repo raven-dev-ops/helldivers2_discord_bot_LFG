@@ -409,6 +409,20 @@ class SOSCog(commands.Cog):
     async def on_voice_state_update(self, member, before, after):
         """Monitor voice channel activity and manage cleanup timers."""
         # Ignore bot state updates
+        voice_channel_id = None
+
+        # Check if the channel has been empty for 2 minutes (120 seconds) at the start
+        # This handles cases where the event might be delayed
+        if before.channel and before.channel.id in self.voice_channels:
+            voice_channel_id = before.channel.id
+            voice_channel = self.voice_channels.get(voice_channel_id)
+            sos_data = self.sos_data_by_channel.get(voice_channel_id)
+
+            if voice_channel and len(voice_channel.members) == 0 and sos_data and (time.time() - sos_data['last_activity']) > 120:
+                logging.info(f"Voice channel {voice_channel_id} was empty for over 2 minutes. Deleting.")
+                await self.delete_voice_channel_and_message(voice_channel_id)
+                return # Stop processing if the channel was just deleted
+
         if member.bot:
             return
 
@@ -427,6 +441,7 @@ class SOSCog(commands.Cog):
 
             sos_data = self.sos_data_by_channel.get(voice_channel_id)
             if sos_data:
+                 sos_data['last_activity'] = time.time() # Update last activity time
                  # Acquire the lock before modifying shared sos_data
                  async with sos_data['lock']:
                      status_field = sos_data['embed'].fields[sos_data['status_index']]
@@ -469,6 +484,7 @@ class SOSCog(commands.Cog):
         # Member left a voice channel
         if before.channel and before.channel.id in self.voice_channels:
             voice_channel_id = before.channel.id
+            # sos_data is needed to update last_activity, but we don't need the lock just for that.
             voice_channel = self.voice_channels.get(voice_channel_id)
 
             if voice_channel and len(voice_channel.members) == 0:
@@ -476,6 +492,10 @@ class SOSCog(commands.Cog):
                 # Ensure we don't schedule cleanup if members are still present
                 if voice_channel_id not in self.cleanup_tasks:
                     cleanup_task = asyncio.create_task(self.schedule_cleanup(voice_channel_id, 60)) # 60 second delay
+                    # Update last activity time when the channel becomes empty
+                    sos_data = self.sos_data_by_channel.get(voice_channel_id)
+                    if sos_data:
+                        sos_data['last_activity'] = time.time()
                     self.cleanup_tasks[voice_channel_id] = cleanup_task
                     logging.debug(f"Scheduled cleanup task for channel {voice_channel_id} in 60 seconds.")
             elif voice_channel and len(voice_channel.members) > 0:

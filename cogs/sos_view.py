@@ -222,10 +222,6 @@ class FinishSOSButton(discord.ui.Button):
     def __init__(self):
         super().__init__(label="Finish SOS", style=discord.ButtonStyle.success)
 
-class FinishSOSButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(label="Finish SOS", style=discord.ButtonStyle.success)
-
     async def callback(self, interaction: discord.Interaction):
         sos_cog = interaction.client.get_cog("SOSCog")
         if sos_cog:

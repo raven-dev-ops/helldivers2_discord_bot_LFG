@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from datetime import datetime
 import logging
-
+import asyncio
 
 class RegisterModal(discord.ui.Modal, title="Register as a Helldiver"):
     """

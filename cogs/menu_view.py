@@ -34,7 +34,7 @@ class SOSMenuView(discord.ui.View):
         # e.g., discord.Intents.all() or specific intents like discord.Intents.interactions
 
     # Button callbacks remain as you provided them in the base code
-    @discord.ui.button(label="LAUNCH SOS", style=discord.ButtonStyle.danger, custom_id="launch_sos_button", disabled=True)
+    @discord.ui.button(label="LAUNCH SOS", style=discord.ButtonStyle.danger, custom_id="launch_sos_button", disabled=False)
     async def launch_sos_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         sos_cog = self.bot.get_cog("SOSCog")
         if sos_cog:
@@ -172,7 +172,7 @@ class MenuViewCog(commands.Cog):
             embed_description = (
                 f"**{alliance_links_md}**\n\n"
                 "**Instructions:**\n"
-                "- **LAUNCH SOS**: Quickly send an SOS for any mission.\n\n"
+                "- **LAUNCH SOS**: Quickly send an SOS for any mission (touchscreens).\n\n"
                 "- **CREATE MISSION**: Customize your SOS mission by selecting various options "
                 "(Enemy Type, Difficulty, Play Style, Voice Comms, and Notes).\n\n"
                 "- **REGISTRATION**: Register your Helldivers 2 player name in your allied server to claim your clan.\n\n"

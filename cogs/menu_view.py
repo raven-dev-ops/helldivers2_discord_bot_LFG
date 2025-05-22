@@ -11,11 +11,8 @@ import os # Import os for path joining
 # Map each clan name to the ID of the guild where we store the invite link
 CLAN_SERVER_IDS = {
     "Guardians of Freedom": 1172948128509468742,
-    "Fenrir III 'Wolf Pack'": 1208728719963721779,
     "Heck Snorkelers": 1221490168670715936,
-    "225th 'Python' SEAF Battalion": 1305994434021687296,
     "Galactic Phantom Taskforce": 1214787549655203862,
-    "Hazard Airborne Commandos": 1309714539331325952,
     "D.S.S. Strike Coalition": 1314713069368250389
 }
 

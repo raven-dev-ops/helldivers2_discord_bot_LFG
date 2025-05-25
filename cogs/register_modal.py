@@ -24,7 +24,7 @@ class RegisterModal(discord.ui.Modal, title="Register as a Helldiver"):
 
     async def _add_role_select(self):
         # This method needs to be async because it interacts with the database
-        if hasattr(self.bot, 'mongo_db') and self.bot.mongo_db:
+        if hasattr(self.bot, 'mongo_db') and self.bot.mongo_db is not None:
             server_listing = self.bot.mongo_db['Server_Listing']
             server_data = await server_listing.find_one({"discord_server_id": self.helldiver_name.view.interaction.guild_id})
             if server_data and 'sos_lfg_role_id' in server_data:

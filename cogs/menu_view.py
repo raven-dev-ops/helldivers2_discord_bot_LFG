@@ -13,7 +13,6 @@ CLAN_SERVER_IDS = {
     "Guardians of Freedom": 1172948128509468742,
     "Heck Snorkelers": 1221490168670715936,
     "Galactic Phantom Taskforce": 1214787549655203862,
-    "D.S.S. Strike Coalition": 1314713069368250389
 }
 
 # Define the path to the image file relative to where the bot is run (e.g., main.py location)

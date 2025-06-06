@@ -178,7 +178,7 @@ class MenuViewCog(commands.Cog):
             )
 
             embed = discord.Embed(
-                title="Welcome to the Alliance Network!",
+                title="Welcome to the GPT LFG Network!",
                 description=embed_description,
                 color=discord.Color.blue()
             )

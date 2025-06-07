@@ -15,31 +15,38 @@ class RegisterModal(discord.ui.Modal, title="Register as a Helldiver"):
         max_length=100
     )
 
-    def __init__(self, bot):
+    def __init__(self, bot, interaction: discord.Interaction):
         super().__init__()
         self.bot = bot
-        # Add the SOS LFG role select menu
+        self.interaction = interaction
         self.sos_lfg_role_select = None  # Initialize to None
-        asyncio.create_task(self._add_role_select()) # Run role select creation asynchronously
+        # Add the SOS LFG role select menu dynamically
+        asyncio.create_task(self._add_role_select())
 
     async def _add_role_select(self):
-        # This method needs to be async because it interacts with the database
-        if hasattr(self.bot, 'mongo_db') and self.bot.mongo_db is not None:
-            server_listing = self.bot.mongo_db['Server_Listing']
-            server_data = await server_listing.find_one({"discord_server_id": self.helldiver_name.view.interaction.guild_id})
-            if server_data and 'sos_lfg_role_id' in server_data:
-                role_id = server_data['sos_lfg_role_id']
-                guild = self.bot.get_guild(self.helldiver_name.view.interaction.guild_id)
-                if guild:
-                    role = guild.get_role(role_id)
-                    if role:
-                        options = [discord.SelectOption(label=role.name, value=str(role.id))]
-                        self.sos_lfg_role_select = discord.ui.Select(
-                            placeholder="Select SOS LFG Role (Optional)",
-                            options=options,
-                            required=False
-                        )
-                        self.add_item(self.sos_lfg_role_select)
+        """
+        This method adds the SOS LFG role select menu dynamically,
+        using the guild context from the interaction.
+        """
+        try:
+            if hasattr(self.bot, 'mongo_db') and self.bot.mongo_db is not None:
+                server_listing = self.bot.mongo_db['Server_Listing']
+                server_data = await server_listing.find_one({"discord_server_id": self.interaction.guild_id})
+                if server_data and 'sos_lfg_role_id' in server_data:
+                    role_id = server_data['sos_lfg_role_id']
+                    guild = self.bot.get_guild(self.interaction.guild_id)
+                    if guild:
+                        role = guild.get_role(role_id)
+                        if role:
+                            options = [discord.SelectOption(label=role.name, value=str(role.id))]
+                            self.sos_lfg_role_select = discord.ui.Select(
+                                placeholder="Select SOS LFG Role (Optional)",
+                                options=options,
+                                required=False
+                            )
+                            self.add_item(self.sos_lfg_role_select)
+        except Exception as e:
+            logging.error(f"Error adding SOS LFG role select: {e}")
 
     async def on_submit(self, interaction: discord.Interaction):
         """
@@ -87,21 +94,19 @@ class RegisterModal(discord.ui.Modal, title="Register as a Helldiver"):
                             ephemeral=True
                         )
                         logging.info(f"Assigned role {role.name} to user {player_name} ({discord_id}).")
-                        return # Exit after sending followup
+                        return  # Exit after sending followup
                     except discord.Forbidden:
                         logging.warning(f"Bot lacks permissions to assign role {role.name} to user {player_name} ({discord_id}).")
-                        # Fall through to send registration success message without role mention
                     except Exception as role_e:
                         logging.error(f"Error assigning role {role.name} to user {player_name} ({discord_id}): {role_e}")
-                        # Fall through to send registration success message without role mention
 
             await interaction.response.send_message(
                 f"Registration successful! Welcome, **{player_name}**!",
                 ephemeral=True
-            ) # Send this if no role was selected or role assignment failed
+            )  # Send this if no role was selected or role assignment failed
             logging.info(f"User {player_name} ({discord_id}) registered successfully{', without role assignment due to error' if selected_role_id else ''}.")
 
-        except Exception as e: # Catch errors during the initial registration process
+        except Exception as e:  # Catch errors during the initial registration process
             logging.error(f"Error during registration: {e}")
             await interaction.response.send_message(
                 "An error occurred while registering. Please try again later.",
@@ -115,11 +120,11 @@ class RegisterModalCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    def get_register_modal(self):
+    def get_register_modal(self, interaction: discord.Interaction):
         """
         Returns an instance of RegisterModal.
         """
-        return RegisterModal(self.bot)
+        return RegisterModal(self.bot, interaction)
 
 async def setup(bot):
     await bot.add_cog(RegisterModalCog(bot))

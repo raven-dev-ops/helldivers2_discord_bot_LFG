@@ -46,7 +46,7 @@ class LeaderboardCog(commands.Cog):
                                 pass
                 if not embeds:
                     embed = discord.Embed(
-                        title="**JUNE ALLIANCE LEADERBOARD**",
+                        title="**GPT JUNE 2025 LEADERBOARD**",
                         description=f"No leaderboard data available.\nPlayers must submit at least ({MIN_GAMES_PLAYED}) games to appear!",
                         color=discord.Color.blue()
                     )

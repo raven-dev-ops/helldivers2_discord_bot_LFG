@@ -42,7 +42,6 @@ class RegisterModal(discord.ui.Modal, title="Register as a Helldiver"):
                             self.sos_lfg_role_select = discord.ui.Select(
                                 placeholder="Select SOS LFG Role (Optional)",
                                 options=options,
-                                required=False
                             )
                             self.add_item(self.sos_lfg_role_select)
         except Exception as e:

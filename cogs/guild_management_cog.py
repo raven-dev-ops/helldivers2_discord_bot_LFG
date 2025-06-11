@@ -564,6 +564,34 @@ class GuildManagementCog(commands.Cog):
             logging.error(f"Error sending SOS menu to '{guild.name}': {e}")
 
 
+    async def _leave_unknown_guilds(self):
+        """
+        Checks if the bot is in any guilds not listed in the database and leaves them.
+        """
+        logging.info("Checking for unknown guilds...")
+        try:
+            server_listing = self.bot.mongo_db['Server_Listing']
+            # Get a list of known guild IDs from the database
+            known_guild_ids_cursor = server_listing.find({}, {"discord_server_id": 1})
+            known_guild_ids = set([doc["discord_server_id"] for doc in await known_guild_ids_cursor.to_list(None)])
+
+            # Iterate through currently connected guilds
+            for guild in list(self.bot.guilds): # Iterate over a copy in case we leave a guild
+                if guild.id not in known_guild_ids:
+                    logging.warning(f"Bot is in unknown guild: {guild.name} (ID: {guild.id}). Leaving guild.")
+                    try:
+                        await guild.leave()
+                        logging.info(f"Successfully left guild: {guild.name} (ID: {guild.id}).")
+                    except discord.Forbidden:
+                        logging.error(f"Forbidden from leaving guild: {guild.name} (ID: {guild.id}). Check bot permissions.")
+                    except Exception as e:
+                        logging.error(f"Error leaving guild {guild.name} (ID: {guild.id}): {e}")
+                else:
+                    logging.debug(f"Guild {guild.name} (ID: {guild.id}) is a known guild. Staying.")
+
+        except Exception as e:
+            logging.error(f"Error during unknown guild check: {e}")
+
     @commands.Cog.listener()
     async def on_ready(self):
         logging.info("GuildManagementCog is ready.")
@@ -573,15 +601,47 @@ class GuildManagementCog(commands.Cog):
         # is now the intended behavior to ensure the guild state is correct on boot.
 
         logging.info("Starting guild setup for all joined guilds on startup.")
+        # Define the list of allowed guild IDs
+        allowed_guild_ids = [1172948128509468742, 1221490168670715936, 1214787549655203862]
+
         for guild in self.bot.guilds:
             logging.info(f"Checking setup for guild: {guild.name} (ID: {guild.id})")
-            try:
-                # force_refresh=True here will ensure old bot messages are deleted from the SOS channel
-                # and the menu is resent, besides performing channel/role setup/cleanup.
-                await self.setup_guild(guild, force_refresh=True)
-            except Exception as e:
-                logging.error(f"Error setting up guild '{guild.name}': {e}")
+            if guild.id in allowed_guild_ids:
+                try:
+                    # force_refresh=True here will ensure old bot messages are deleted from the SOS channel
+                    # and the menu is resent, besides performing channel/role setup/cleanup.
+                    await self.setup_guild(guild, force_refresh=True)
+                except Exception as e:
+                    logging.error(f"Error setting up guild '{guild.name}': {e}")
+            else:
+                logging.info(f"Skipping setup for guild: {guild.name} (ID: {guild.id}) - Not in the allowed list.")
 
+        # After setting up known guilds, check and leave unknown ones
+        await self._leave_unknown_guilds()
+        logging.info("GuildManagementCog is ready.")
+        # The previous issue was that on_ready running setup_guild every time
+        # caused channel duplicates because the old ones weren't cleaned up.
+        # With the new cleanup logic in setup_guild, running it on_ready
+        # is now the intended behavior to ensure the guild state is correct on boot.
+
+        logging.info("Starting guild setup for all joined guilds on startup.")
+        # Define the list of allowed guild IDs
+        allowed_guild_ids = [1172948128509468742, 1221490168670715936, 1214787549655203862]
+
+        for guild in self.bot.guilds:
+            logging.info(f"Checking setup for guild: {guild.name} (ID: {guild.id})")
+            if guild.id in allowed_guild_ids:
+                try:
+                    # force_refresh=True here will ensure old bot messages are deleted from the SOS channel
+                    # and the menu is resent, besides performing channel/role setup/cleanup.
+                    await self.setup_guild(guild, force_refresh=True)
+                except Exception as e:
+                    logging.error(f"Error setting up guild '{guild.name}': {e}")
+            else:
+                logging.info(f"Skipping setup for guild: {guild.name} (ID: {guild.id}) - Not in the allowed list.")
+
+        # After setting up known guilds, check and leave unknown ones
+        await self._leave_unknown_guilds()
         logging.info("Finished initial guild setup for all joined guilds.")
 
 

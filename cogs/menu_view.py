@@ -79,7 +79,7 @@ class SOSMenuView(discord.ui.View):
         register_modal_cog = self.bot.get_cog("RegisterModalCog")
         if register_modal_cog:
             try:
-                modal = register_modal_cog.get_register_modal()
+                modal = register_modal_cog.get_register_modal(interaction)
                 await interaction.response.send_modal(modal)
             except Exception as e:
                 await interaction.response.send_message(

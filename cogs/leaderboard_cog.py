@@ -46,7 +46,7 @@ class LeaderboardCog(commands.Cog):
                                 pass
                 if not embeds:
                     embed = discord.Embed(
-                        title="**GPT JUNE 2025 LEADERBOARD**",
+                        title="**GPT JULY 2025 LEADERBOARD**",
                         description=f"No leaderboard data available.\nPlayers must submit at least ({MIN_GAMES_PLAYED}) games to appear!",
                         color=discord.Color.blue()
                     )
@@ -140,8 +140,11 @@ class LeaderboardCog(commands.Cog):
                         "Clan": d["Clan"],
                         "accuracy": accuracy,
                     })
-            leaderboard.sort(key=lambda x: -x["melee_kills"])
+
+            # Sort by best average accuracy (descending)
+            leaderboard.sort(key=lambda x: -x["accuracy"])
             return leaderboard
+
         except Exception as e:
             logger.error(f"Error fetching leaderboard: {e}")
             return []
@@ -158,7 +161,7 @@ class LeaderboardCog(commands.Cog):
         for i in range(num_pages):
             batch = leaderboard_data[i*batch_size:(i+1)*batch_size]
             embed = discord.Embed(
-                title=f"**JUNE ALLIANCE LEADERBOARD**\n*(Most Melee Kills)*",
+                title=f"**GPT JULY 2025 LEADERBOARD**\n*(Best Accuracy!)*",
                 color=discord.Color.blurple()
             )
             if num_pages > 1:
